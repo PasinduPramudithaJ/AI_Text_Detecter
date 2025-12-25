@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Text Detection System</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+
+<header>
+    <h1>AI vs Human Text Detector</h1>
+    <p class="subtitle">Upload a PDF or DOCX file to analyze AI vs Human text. You can skip unwanted paragraphs.</p>
+</header>
+
+<section class="upload-box">
+    <form method="POST" enctype="multipart/form-data" class="inline-form">
+        <input type="file" name="file" accept=".pdf,.docx" required>
+        <button type="submit">Analyze Text</button>
+    </form>
+    <form method="GET" action="/" class="inline-form">
+        <button type="submit" class="clear-btn">Clear</button>
+    </form>
+</section>
+
+{% if ai_score is not none %}
+<form method="POST" class="skip-form">
+    <input type="hidden" name="file" value="{{ request.files['file'].filename if request.files.get('file') else '' }}">
+    <section class="result-box">
+        <h2>Overall Detection Result</h2>
+        <div class="score-cards">
+            <div class="card ai-card">
+                <h3>AI Generated</h3>
+                <p>{{ ai_score }}%</p>
+            </div>
+            <div class="card human-card">
+                <h3>Human Written</h3>
+                <p>{{ human_score }}%</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="table-box">
+        <h2>Paragraph-level Analysis</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Skip?</th>
+                    <th>Page</th>
+                    <th>Paragraph</th>
+                    <th>AI %</th>
+                    <th>Human %</th>
+                    <th>Classification</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in details %}
+                <tr class="{{ 'ai' if row.label=='AI-generated' else 'human' }}">
+                    <td>
+                        <input type="checkbox" name="skip" value="{{ row.page }}-{{ row.index }}">
+                    </td>
+                    <td>{{ row.page }}</td>
+                    <td class="sentence">{{ row.text }}</td>
+                    <td>{{ row.ai }}</td>
+                    <td>{{ row.human }}</td>
+                    <td><b>{{ row.label }}</b></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    <button type="submit" style="margin-top:10px;">Recalculate Without Skipped Paragraphs</button>
+</form>
+{% endif %}
+
+<footer>
+    <p>Perplexity-based AI Text Detection • Research Prototype</p>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,8 @@
+flask
+python-docx
+PyPDF2
+nltk
+numpy
+scikit-learn
+transformers
+torch
