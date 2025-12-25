@@ -1,10 +1,14 @@
 import os
 import torch
 import numpy as np
-from flask import Flask, render_template, request
+import json
+import webbrowser
+from threading import Timer
+from flask import Flask, render_template, request, send_file
 from PyPDF2 import PdfReader
 from docx import Document
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast
+import pdfkit
 
 # ---------- FLASK SETUP ----------
 app = Flask(__name__)
@@ -12,7 +16,7 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ---------- MODEL SETUP ----------
-device = torch.device("cpu")  # change to "cuda" if GPU available
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
 model = GPT2LMHeadModel.from_pretrained("gpt2")
@@ -24,10 +28,7 @@ def extract_pdf(path):
     reader = PdfReader(path)
     pages = []
     for i, page in enumerate(reader.pages):
-        pages.append({
-            "page": i + 1,
-            "text": page.extract_text() or ""
-        })
+        pages.append({"page": i + 1, "text": page.extract_text() or ""})
     return pages
 
 def extract_docx(path):
@@ -50,10 +51,6 @@ def sentence_perplexity(text):
     return torch.exp(loss).item()
 
 def analyze_paragraphs(pages, skip_indices=None):
-    """
-    Analyze paragraphs with optional skipping
-    skip_indices: list of tuples (page_number, paragraph_index)
-    """
     if skip_indices is None:
         skip_indices = []
 
@@ -63,19 +60,17 @@ def analyze_paragraphs(pages, skip_indices=None):
     for page in pages:
         paragraphs = [p.strip() for p in page["text"].split("\n") if p.strip()]
         for idx, p in enumerate(paragraphs):
-            if len(p) < 25:  # skip too short text automatically
+            if len(p) < 25:
                 continue
             if (page["page"], idx) in skip_indices:
-                continue  # skip manually marked paragraph
-
+                continue
             ppl = sentence_perplexity(p)
             ai_prob = max(0, min(1, (90 - ppl) / 90))
             human_prob = 1 - ai_prob
             ai_probs.append(ai_prob)
-
             results.append({
                 "page": page["page"],
-                "index": idx,  # paragraph index for skipping
+                "index": idx,
                 "text": p,
                 "ai": round(ai_prob * 100, 2),
                 "human": round(human_prob * 100, 2),
@@ -105,20 +100,22 @@ def index():
         else:
             return "Unsupported file type"
 
-        # Check for skipped paragraphs submitted via form
         skip_raw = request.form.getlist("skip")
         skip_indices = [tuple(map(int, x.split("-"))) for x in skip_raw] if skip_raw else []
 
         ai, human, details = analyze_paragraphs(pages, skip_indices)
 
-        return render_template(
-            "index.html",
-            ai_score=ai,
-            human_score=human,
-            details=details
-        )
+        analysis_file = os.path.join(UPLOAD_DIR, "latest_analysis.json")
+        with open(analysis_file, "w", encoding="utf-8") as f:
+            json.dump({"ai": ai, "human": human, "details": details}, f)
+
+        return render_template("index.html", ai_score=ai, human_score=human, details=details, file_name=file.filename)
 
     return render_template("index.html")
 # ---------- RUN ----------
+def open_browser():
+    webbrowser.open_new("http://127.0.0.1:5000")
+
 if __name__ == "__main__":
+    Timer(1, open_browser).start()
     app.run(debug=True)

@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <title>AI Text Detection System</title>
     <link rel="stylesheet" href="/static/style.css">
+    <!-- jsPDF library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- html2canvas for better table rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 <div class="container">
@@ -26,7 +30,9 @@
 {% if ai_score is not none %}
 <form method="POST" class="skip-form">
     <input type="hidden" name="file" value="{{ request.files['file'].filename if request.files.get('file') else '' }}">
-    <section class="result-box">
+
+    <!-- Overall Scores -->
+    <section class="result-box" id="pdf-content">
         <h2>Overall Detection Result</h2>
         <div class="score-cards">
             <div class="card ai-card">
@@ -38,39 +44,81 @@
                 <p>{{ human_score }}%</p>
             </div>
         </div>
+
+        <!-- Paragraph-level Analysis -->
+        <section class="table-box">
+            <h2>Paragraph-level Analysis</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Skip?</th>
+                        <th>Page</th>
+                        <th>Paragraph</th>
+                        <th>AI %</th>
+                        <th>Human %</th>
+                        <th>Classification</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in details %}
+                    <tr class="{{ 'ai' if row.label=='AI-generated' else 'human' }}">
+                        <td>{{ row.page }}-{{ row.index }}</td>
+                        <td>{{ row.page }}</td>
+                        <td class="sentence">{{ row.text }}</td>
+                        <td>{{ row.ai }}</td>
+                        <td>{{ row.human }}</td>
+                        <td><b>{{ row.label }}</b></td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </section>
     </section>
 
-    <section class="table-box">
-        <h2>Paragraph-level Analysis</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Skip?</th>
-                    <th>Page</th>
-                    <th>Paragraph</th>
-                    <th>AI %</th>
-                    <th>Human %</th>
-                    <th>Classification</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for row in details %}
-                <tr class="{{ 'ai' if row.label=='AI-generated' else 'human' }}">
-                    <td>
-                        <input type="checkbox" name="skip" value="{{ row.page }}-{{ row.index }}">
-                    </td>
-                    <td>{{ row.page }}</td>
-                    <td class="sentence">{{ row.text }}</td>
-                    <td>{{ row.ai }}</td>
-                    <td>{{ row.human }}</td>
-                    <td><b>{{ row.label }}</b></td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </section>
-    <button type="submit" style="margin-top:10px;">Recalculate Without Skipped Paragraphs</button>
+    <!-- Buttons -->
+    <div class="form-buttons">
+        <button type="submit" style="margin-top:10px;">Recalculate Without Skipped Paragraphs</button>
+        <button type="button" class="download-btn" onclick="downloadPDF()" style="margin-left:20px;">Download PDF Report</button>
+    </div>
 </form>
+
+<script>
+function downloadPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'pt', 'a4');
+    const content = document.getElementById("pdf-content");
+
+    html2canvas(content, { scale: 2 }).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const imgProps = doc.getImageProperties(imgData);
+        const pdfWidth = doc.internal.pageSize.getWidth() - 40;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        let position = 20;
+
+        if (pdfHeight < doc.internal.pageSize.getHeight() - 40) {
+            doc.addImage(imgData, 'PNG', 20, position, pdfWidth, pdfHeight);
+        } else {
+            // Split long content into multiple pages
+            let pageHeight = doc.internal.pageSize.getHeight() - 40;
+            let totalPages = Math.ceil(pdfHeight / pageHeight);
+            for (let i = 0; i < totalPages; i++) {
+                const srcY = i * pageHeight * (imgProps.height / pdfHeight);
+                const sHeight = Math.min(pageHeight * (imgProps.height / pdfHeight), imgProps.height - srcY);
+                const canvasPage = document.createElement('canvas');
+                canvasPage.width = canvas.width;
+                canvasPage.height = sHeight;
+                const ctx = canvasPage.getContext('2d');
+                ctx.drawImage(canvas, 0, -srcY);
+                const imgPage = canvasPage.toDataURL('image/png');
+                if (i > 0) doc.addPage();
+                doc.addImage(imgPage, 'PNG', 20, 20, pdfWidth, pageHeight);
+            }
+        }
+
+        doc.save("AI_Text_Report.pdf");
+    });
+}
+</script>
 {% endif %}
 
 <footer>

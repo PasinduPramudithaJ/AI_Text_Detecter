@@ -41,4 +41,32 @@ tr.ai { background:#fee2e2; }
 tr.human { background:#dcfce7; }
 tr:hover { background:#e0e7ff; }
 
+.form-buttons {
+    margin-top:15px;
+    text-align:center;
+}
+
+button, .download-btn {
+    padding:10px 20px;
+    font-size:15px;
+    border-radius:6px;
+    cursor:pointer;
+    border:none;
+    color:#fff;
+    text-decoration:none;
+}
+
+button:hover, .download-btn:hover {
+    opacity:0.9;
+}
+
+.download-btn {
+    background: #2563eb;
+    margin-left:15px;
+}
+
+.download-btn:hover {
+    background:#1d4ed8;
+}
+
 footer { text-align:center; margin-top:30px; font-size:13px; color:#777; }
